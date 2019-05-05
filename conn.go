@@ -20,6 +20,7 @@ import (
 	"unicode"
 
 	"github.com/magi345/pq/oid"
+	"sync"
 )
 
 // Common error types
@@ -45,7 +46,17 @@ func (d *Driver) Open(name string) (driver.Conn, error) {
 	return Open(name)
 }
 
+var lock sync.Mutex
+
 func init() {
+	lock.Lock()
+	defer lock.Unlock()
+	drivers := sql.Drivers()
+	for _, d := range drivers {
+		if d == "postgres" {
+			return
+		}
+	}
 	sql.Register("postgres", &Driver{})
 }
 
