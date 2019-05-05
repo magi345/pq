@@ -134,6 +134,8 @@ type conn struct {
 
 	// If true this connection is in the middle of a COPY
 	inCopy bool
+
+	gssctx
 }
 
 // Handle driver-side settings in parsed connection string.
@@ -353,6 +355,7 @@ func DialOpen(d Dialer, name string) (_ driver.Conn, err error) {
 		}
 	}()
 
+	cn.gss(o)
 	cn.buf = bufio.NewReader(cn.c)
 	cn.startup(o)
 
@@ -1083,6 +1086,9 @@ func isDriverSetting(key string) bool {
 		return true
 	case "binary_parameters":
 		return true
+	// GSSAPI related
+	case "krbsrvname", "gsslib":
+		return true
 
 	default:
 		return false
@@ -1162,6 +1168,18 @@ func (cn *conn) auth(r *readBuf, o values) {
 
 		if r.int32() != 0 {
 			errorf("unexpected authentication response: %q", t)
+		}
+	case 7:
+		// AUTH_REQ_GSS: GSSAPI without wrap()
+		if cn.gsslib != nil {
+			cn.gssStartup(o["user"])
+		}
+	case 8:
+		// AUTH_REQ_GSS_CONT: Continue GSS exchanges
+		// TODO lock thread?
+		if cn.gsslib != nil {
+			// TODO need to check inbuf size?
+			cn.gssContinue()
 		}
 	default:
 		errorf("unknown authentication response: %d", code)
@@ -1816,8 +1834,10 @@ func parseEnviron(env []string) (out map[string]string) {
 			unsupported()
 		case "PGREQUIREPEER":
 			unsupported()
-		case "PGKRBSRVNAME", "PGGSSLIB":
-			unsupported()
+		case "PGKRBSRVNAME":
+			accrue("krbsrvname")
+		case "PGGSSLIB":
+			accrue("gsslib")
 		case "PGCONNECT_TIMEOUT":
 			accrue("connect_timeout")
 		case "PGCLIENTENCODING":
