@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/lib/pq/oid"
+	"github.com/magi345/pq/oid"
 )
 
 const headerSize = 4

@@ -1,1 +1,1 @@
-module github.com/lib/pq
+module github.com/magi345/pq
